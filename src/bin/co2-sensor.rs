@@ -14,8 +14,8 @@ mod app {
     use super::*;
 
     use defmt;
+    use embedded_hal::digital::OutputPin;
     use hal::gpio::{Level, Output, Pin, PushPull};
-    use hal::prelude::*;
 
     #[shared]
     struct Shared {}
@@ -27,12 +27,16 @@ mod app {
 
     #[init]
     fn init(cx: init::Context) -> (Shared, Local) {
+        // Clear terminal and position the cursor in the upper left corner.
+        let CLEAR_SCREEN: defmt::Str = defmt::intern!("\x1b[2J\x1b[1;1H");
+
+        defmt::println!("{=istr}", CLEAR_SCREEN);
         defmt::info!("----------------");
         defmt::info!("-- CO2 Sensor --");
         defmt::info!("----------------");
 
         // Enable the DC/DC converter
-        cx.device.POWER.dcdcen.write(|w| {w.dcdcen().enabled()});
+        cx.device.POWER.dcdcen.write(|w| w.dcdcen().enabled());
 
         // Configure low frequency clock
         hal::clocks::Clocks::new(cx.device.CLOCK).start_lfclk();
@@ -55,7 +59,7 @@ mod app {
         let blink::LocalResources { led, .. } = cx.local;
 
         let mut next_tick = Mono::now();
-        let mut blink_on = false;
+        let mut blink_on = true;
         loop {
             // let now = Mono::now();
             // let now_ms: fugit::SecsDurationU64 = now.duration_since_epoch().convert();
