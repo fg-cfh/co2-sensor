@@ -1,0 +1,14 @@
+[package]
+authors = ["Florian Grandel <fgrandel@code-for-humans.de>"]
+name = "di-macros"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+harness = false
+proc-macro = true
+
+[dependencies]
+
+[dev-dependencies]
+syn = "2.0"

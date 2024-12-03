@@ -1,6 +1,8 @@
 use super::api::usb::*;
 use super::api::{self, Driver};
-use super::osc_nrf::{DontCare, NrfHfOscillator, NrfLfOscillator, NrfOscillatorsDriver};
+use super::osc_nrf::{
+    DontCare, NrfHfOscillatorDriver, NrfLfOscillatorDriver, NrfOscillatorsDriver,
+};
 use super::resources_nrf::NrfUsbDriverResources;
 use super::{OscillatorsDriver, RequestOsc};
 use nrf52840_hal::clocks::{Clocks, ExternalOscillator};
@@ -26,14 +28,14 @@ static CLOCKS: StaticCell<Clocks<ExternalOscillator, DontCare, DontCare>> = Stat
 impl
     api::Driver<
         NrfUsbDriverResources,
-        &'static NrfOscillatorsDriver<NrfLfOscillator, NrfHfOscillator>,
+        &'static NrfOscillatorsDriver<NrfLfOscillatorDriver, NrfHfOscillatorDriver>,
     > for NrfUsbDriver
 {
-    fn new(
+    fn get(
         resources: NrfUsbDriverResources,
-        osc_driver: &'static NrfOscillatorsDriver<NrfLfOscillator, NrfHfOscillator>,
+        osc_driver: &'static NrfOscillatorsDriver<NrfLfOscillatorDriver, NrfHfOscillatorDriver>,
     ) -> Self {
-        let clocks = CLOCKS.init(osc_driver.oscillators().high_acc_hf_osc.request().unwrap());
+        let clocks = CLOCKS.init(osc_driver.oscillator().high_acc_hf_osc.request().unwrap());
         let usb_peripheral = UsbPeripheral::new(resources.usbd, clocks);
         let usb_alloc = USB_ALLOC.init(UsbBusAllocator::new(Usbd::new(usb_peripheral)));
         Self { usb_alloc }
@@ -42,9 +44,9 @@ impl
 
 pub fn init(
     resources: NrfUsbDriverResources,
-    osc_driver: &'static NrfOscillatorsDriver<NrfLfOscillator, NrfHfOscillator>,
+    osc_driver: &'static NrfOscillatorsDriver<NrfLfOscillatorDriver, NrfHfOscillatorDriver>,
 ) -> Result<&mut NrfUsbDriver, api::ApiError> {
     USB_DRIVER
-        .try_init(NrfUsbDriver::new(resources, osc_driver))
+        .try_init(NrfUsbDriver::get(resources, osc_driver))
         .ok_or(api::DRIVER_ALREADY_INITIALIZED)
 }

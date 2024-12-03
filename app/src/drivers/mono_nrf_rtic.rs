@@ -1,10 +1,8 @@
-use super::super::drivers::osc_nrf::NrfLfOscillator;
-use super::api::mono::*;
-use super::api::osc::*;
-use super::api::{self, Driver};
-use super::osc_nrf::NrfHfOscillator;
-use super::osc_nrf::NrfOscillatorsDriver;
-use super::resources_nrf::NrfRticMonoDriverResources;
+use super::api::{self, mono::*, osc::OscillatorDriver, Driver, StatelessDriver};
+use super::osc_nrf::NrfLfOscillatorDriver;
+use super::resources_nrf::NrfDriverResources;
+use di::Singleton;
+use nrf52840_hal::pac::RTC0;
 use rtic_monotonics::{Monotonic, TimerQueueBasedMonotonic};
 
 mod private {
@@ -14,19 +12,24 @@ mod private {
 
 pub struct NrfRticMonoDriver;
 
-impl
-    api::Driver<NrfRticMonoDriverResources, &NrfOscillatorsDriver<NrfLfOscillator, NrfHfOscillator>>
-    for NrfRticMonoDriver
-{
-    fn new(
-        resources: NrfRticMonoDriverResources,
-        osc_driver: &NrfOscillatorsDriver<NrfLfOscillator, NrfHfOscillator>,
-    ) -> NrfRticMonoDriver {
-        osc_driver.oscillators().lf_osc.request().unwrap();
-        private::Rtc0Mono::start(resources.rtc0);
-        NrfRticMonoDriver {}
+impl StatelessDriver<RTC0> for NrfRticMonoDriver {
+    fn with_dependencies<F>(f: F) {
+        NrfDriverResources::with_state(|resources| f(resources.rtc0.take().unwrap()));
+    }
+
+    fn init_once(rtc0: RTC0) {
+        NrfLfOscillatorDriver::ensure_is_initialized();
+        NrfLfOscillatorDriver::request();
+        private::Rtc0Mono::start(rtc0);
     }
 }
+
+impl Driver for NrfRticMonoDriver {
+    fn ensure_is_initialized() {
+        Self::ensure_is_initialized();
+    }
+}
+
 pub type Instant = <private::Rtc0Mono as TimerQueueBasedMonotonic>::Instant;
 pub type Duration = <private::Rtc0Mono as TimerQueueBasedMonotonic>::Duration;
 
@@ -65,11 +68,4 @@ impl MonoDriver for NrfRticMonoDriver {
             .await
             .map_err(|_| api::TIMEOUT)
     }
-}
-
-pub fn init(
-    resources: NrfRticMonoDriverResources,
-    osc_driver: &NrfOscillatorsDriver<NrfLfOscillator, NrfHfOscillator>,
-) -> Result<NrfRticMonoDriver, api::ApiError> {
-    Ok(NrfRticMonoDriver::new(resources, osc_driver))
 }

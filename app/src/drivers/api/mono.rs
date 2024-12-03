@@ -1,7 +1,7 @@
-use super::ApiError;
+use super::{ApiError, Driver};
 
 #[allow(async_fn_in_trait)]
-pub trait MonoDriver {
+pub trait MonoDriver: Driver {
     type Instant;
     type Duration;
 

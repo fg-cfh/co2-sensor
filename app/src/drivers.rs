@@ -12,29 +12,29 @@ mod soc_cortex_m;
 mod usb_nrf;
 
 use api::osc::*;
-use gpio_nrf::NrfGpioDriver;
+use gpio_nrf::NrfGpioDriverState;
 use mono_nrf_rtic::NrfRticMonoDriver;
 pub use mono_nrf_rtic::{Duration, Instant};
-use osc_nrf::{NrfHfOscillator, NrfLfOscillator, NrfOscillatorsDriver};
+use osc_nrf::{NrfHfOscillatorDriver, NrfLfOscillatorDriver, NrfOscillatorsDriver};
 pub use resources_nrf::pac;
 use rng_nrf::NrfRngDriver;
 use usb_nrf::NrfUsbDriver;
 
 pub struct Drivers<'a> {
-    pub osc: &'a NrfOscillatorsDriver<NrfLfOscillator, NrfHfOscillator>,
+    pub osc: &'a NrfOscillatorsDriver<NrfLfOscillatorDriver, NrfHfOscillatorDriver>,
     pub rng: NrfRngDriver,
     pub mono: NrfRticMonoDriver,
-    pub gpio: NrfGpioDriver,
+    pub gpio: NrfGpioDriverState,
     pub usb: &'a mut NrfUsbDriver,
 }
 
 pub type MonoDriver = NrfRticMonoDriver;
-pub type GpioDriver = NrfGpioDriver;
+pub type GpioDriver = NrfGpioDriverState;
 pub type UsbDriver = NrfUsbDriver;
 
 /// Instantiate drivers that take ownership of the peripherals.
 pub fn init<'a>(peripherals: pac::Peripherals) -> Drivers<'a> {
-    let resources = resources_nrf::transfer(peripherals);
+    let resources = resources_nrf::init(peripherals);
 
     soc_cortex_m::init().unwrap();
     log_defmt_rtt::init().unwrap();
