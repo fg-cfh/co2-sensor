@@ -7,6 +7,7 @@ pub mod device_nrf;
 
 pub const NUM_CLASSES: usize = 1;
 
+static USB_ALLOC: StaticCell<UsbBusAllocator<Usbd<UsbPeripheral<'static>>>> = StaticCell::new();
 pub trait SubsysUsbClassFactory<B: UsbBus> {
     fn new<'a>(usb_driver: &'static dyn UsbDriver<B>) -> &'a mut Self;
 }

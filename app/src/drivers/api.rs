@@ -4,12 +4,15 @@ pub mod mono;
 pub mod osc;
 pub mod power;
 pub mod rng;
+pub mod soc;
 pub mod usb;
 
+use core::error::Error;
 use core::fmt;
 use core::fmt::Debug;
-use core::{error::Error, sync::atomic::AtomicBool};
-use di::{Singleton, SingletonHolder};
+use core::sync::atomic::{AtomicBool, Ordering};
+use di::singleton::SingletonHolderImpl;
+use di::Initialized;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ApiError(&'static str);
@@ -21,57 +24,38 @@ impl fmt::Display for ApiError {
 }
 pub(super) static TIMEOUT: ApiError = ApiError("timeout");
 
-pub trait Driver {
-    fn ensure_is_initialized();
-}
+pub trait Driver: Initialized {}
 
-struct StatelessDriverInitState(AtomicBool);
+pub type DriverStateHolder<State> = SingletonHolderImpl<State>;
 
-impl StatelessDriverInitState {
-    pub fn new() -> StatelessDriverInitState {
-        StatelessDriverInitState(AtomicBool::new(false))
+pub struct InitState(AtomicBool);
+
+impl Initialized for InitState {
+    fn init(&self) {
+        self.0.store(true, Ordering::Release)
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.0.load(Ordering::Acquire)
     }
 }
 
-impl SingletonHolder<bool> for StatelessDriverInitState {
-    fn init_once<I, F: FnOnce(I) -> bool>(&mut self, dependencies: I, f: F) {
-        self.0.init_once(dependencies, f);
-    }
+#[derive(Default)]
+pub struct StatelessDriver;
 
-    fn with_state<R, F: FnOnce(bool) -> (bool, R)>(&mut self, f: F) -> R {
-        self.0.with(f)
-    }
-
-    fn is_initialized(&mut self) -> bool {
-        self.0.is_initialized()
+impl StatelessDriver {
+    fn init_state() -> &'static InitState {
+        static STATE: InitState = InitState(AtomicBool::new(false));
+        &STATE
     }
 }
 
-pub trait StatelessDriver<D> {
-    fn init_state() -> &'static mut StatelessDriverInitState
-    where
-        Self: Sized,
-    {
-        static INIT_STATE: StatelessDriverInitState = StatelessDriverInitState::new();
-        &mut INIT_STATE
+impl Initialized for StatelessDriver {
+    fn init(&self) {
+        Self::init_state().ensure_is_initialized();
     }
 
-    fn with_dependencies<F>(f: F)
-    where
-        F: FnOnce(D),
-        Self: Sized;
-
-    fn init_once(dependencies: D)
-    where
-        Self: Sized;
-
-    fn ensure_is_initialized() {
-        Self::init_state().with(|is_initialized| {
-            if !is_initialized {
-                Self::with_dependencies(|dependencies| {
-                    Self::init_once(dependencies);
-                });
-            }
-        })
+    fn is_initialized(&self) -> bool {
+        Self::init_state().is_initialized()
     }
 }

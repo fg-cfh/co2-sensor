@@ -1,8 +1,11 @@
-use di::{Singleton, SingletonHolder, SingletonHolderImpl};
-pub use hal::pac::*;
+use di::{
+    singleton::{Singleton, SingletonHolderImpl},
+    WithDependency,
+};
+use hal::pac::*;
 use nrf52840_hal as hal;
 
-pub struct NrfDriverResources {
+struct NrfResources {
     pub power: Option<POWER>,
     pub clock: Option<CLOCK>,
     pub rng: Option<RNG>,
@@ -11,27 +14,38 @@ pub struct NrfDriverResources {
     pub usbd: Option<USBD>,
 }
 
-impl Singleton<NrfDriverResources, Peripherals> for NrfDriverResources {
-    fn with_state_holder<F>(f: F) {
-        static STATE: SingletonHolderImpl<NrfDriverResources> = Default::default();
-        STATE.with_state(|state| f(&mut state));
-    }
-
-    fn with_dependencies<F>(f: F) {
+impl WithDependency<Peripherals> for NrfResources {
+    fn with_dependency<Result, F: FnOnce(Peripherals) -> Result>(f: F) -> Result {
         // SAFETY: The driver framework ensures that this is the unique
         // canonical provider for peripherals. It is assumed that the OS will
         // consume peripherals safely.
         f(unsafe { Peripherals::steal() })
     }
+}
 
-    fn from(peripherals: Peripherals) -> NrfDriverResources {
-        NrfDriverResources {
+impl Default for NrfResources {
+    fn default() -> Self {
+        Self::with_dependency(|peripherals| NrfResources {
             power: Some(peripherals.POWER),
             clock: Some(peripherals.CLOCK),
             rng: Some(peripherals.RNG),
             p0: Some(peripherals.P0),
             rtc0: Some(peripherals.RTC0),
             usbd: Some(peripherals.USBD),
-        }
+        })
+    }
+}
+
+pub struct NrfDriverResources;
+
+impl Singleton for NrfDriverResources {
+    type Content = NrfResources;
+
+    fn with_state_holder<R, F>(f: F) -> R
+    where
+        F: FnOnce(&'static SingletonHolderImpl<NrfResources>) -> R,
+    {
+        static RESOURCES_HOLDER: SingletonHolderImpl<NrfResources> = SingletonHolderImpl::new();
+        f(&RESOURCES_HOLDER)
     }
 }

@@ -1,40 +1,64 @@
-use super::api::{gpio::*, Driver};
+use super::api::{gpio::*, Driver, DriverStateHolder};
 use super::resources_nrf::NrfDriverResources;
 use core::convert::Infallible;
-use di::{Singleton, SingletonHolder, SingletonHolderImpl};
+use di::singleton::Singleton;
+use di::{Initialized, WithDependency};
 use embedded_hal::digital::OutputPin;
 use nrf52840_hal::{
     gpio::{self, Level, Output, Pin, PushPull},
     pac::P0,
 };
 
-pub struct NrfGpioDriverState {
+pub struct NrfGpioState {
     led: Pin<Output<PushPull>>,
 }
 
-impl Singleton<NrfGpioDriverState, P0> for NrfGpioDriverState {
-    fn with_state_holder<F, R>(f: F) -> R {
-        static DRIVER_STATE: SingletonHolderImpl<NrfGpioDriverState> = Default::default();
-        f(&mut DRIVER_STATE)
+impl WithDependency<P0> for NrfGpioState {
+    fn with_dependency<Result, F: FnOnce(P0) -> Result>(f: F) -> Result {
+        NrfDriverResources::with_ref_mut(|resources| f(resources.p0.take().unwrap()))
     }
+}
 
-    fn with_dependencies<F>(f: F) {
-        NrfDriverResources::with_state(|resources| f(resources.p0.take().unwrap()));
+impl Default for NrfGpioState {
+    fn default() -> Self {
+        Self::with_dependency(|p0| {
+            let port0 = gpio::p0::Parts::new(p0);
+            Self {
+                led: port0.p0_13.into_push_pull_output(Level::Low).degrade(),
+            }
+        })
     }
+}
 
-    fn from(p0: P0) -> NrfGpioDriverState {
-        let port0 = gpio::p0::Parts::new(p0);
-        Self {
-            led: port0.p0_13.into_push_pull_output(Level::Low).degrade(),
-        }
+struct NrfGpioDriverState;
+
+impl Singleton for NrfGpioDriverState {
+    type Content = NrfGpioState;
+
+    fn with_state_holder<Result, F>(f: F) -> Result
+    where
+        F: FnOnce(&DriverStateHolder<Self::Content>) -> Result,
+    {
+        static DRIVER_STATE: DriverStateHolder<NrfGpioState> = DriverStateHolder::new();
+        f(&DRIVER_STATE)
     }
 }
 
 struct NrfGpioDriver;
 
-impl Driver for NrfGpioDriver {
-    fn ensure_is_initialized() {
-        NrfGpioDriverState::ensure_state();
+impl NrfGpioDriver {
+    const fn new() -> NrfGpioDriver {
+        NrfGpioDriver
+    }
+}
+
+impl Initialized for NrfGpioDriver {
+    fn init(&self) {
+        NrfGpioDriverState.init();
+    }
+
+    fn is_initialized(&self) -> bool {
+        NrfGpioDriverState.is_initialized()
     }
 }
 
@@ -43,10 +67,27 @@ impl GpioDriver for NrfGpioDriver {
 
     fn with_output_pin<F>(name: GpioOutputPin, f: F)
     where
+        F: FnOnce(&dyn OutputPin<Error = Self::GpioError>),
+    {
+        NrfGpioDriverState::with_ref(|state| {
+            let pin = match name {
+                GpioOutputPin::LED => &state.led,
+            };
+            f(pin);
+        });
+    }
+
+    fn with_output_pin_mut<F>(name: GpioOutputPin, f: F)
+    where
         F: FnOnce(&mut dyn OutputPin<Error = Self::GpioError>),
     {
-        NrfGpioDriverState::with_state(|state| match name {
-            GpioOutputPin::LED => &mut state.led,
-        })
+        NrfGpioDriverState::with_ref_mut(|state| {
+            let pin = match name {
+                GpioOutputPin::LED => &mut state.led,
+            };
+            f(pin);
+        });
     }
 }
+
+impl Driver for NrfGpioDriver {}

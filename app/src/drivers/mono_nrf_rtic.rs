@@ -1,7 +1,9 @@
-use super::api::{self, mono::*, osc::OscillatorDriver, Driver, StatelessDriver};
-use super::osc_nrf::NrfLfOscillatorDriver;
+use super::api::StatelessDriver;
+use super::api::{self, mono::*, osc::OscillatorDriver, Driver};
+use super::osc_nrf::NrfSleepOscillatorDriver;
 use super::resources_nrf::NrfDriverResources;
-use di::Singleton;
+use di::singleton::Singleton;
+use di::{Initialized, WithDependency};
 use nrf52840_hal::pac::RTC0;
 use rtic_monotonics::{Monotonic, TimerQueueBasedMonotonic};
 
@@ -10,23 +12,29 @@ mod private {
     nrf_rtc0_monotonic!(Rtc0Mono);
 }
 
-pub struct NrfRticMonoDriver;
+pub struct NrfRticMonoDriver(StatelessDriver);
 
-impl StatelessDriver<RTC0> for NrfRticMonoDriver {
-    fn with_dependencies<F>(f: F) {
-        NrfDriverResources::with_state(|resources| f(resources.rtc0.take().unwrap()));
-    }
-
-    fn init_once(rtc0: RTC0) {
-        NrfLfOscillatorDriver::ensure_is_initialized();
-        NrfLfOscillatorDriver::request();
-        private::Rtc0Mono::start(rtc0);
+impl WithDependency<RTC0> for NrfRticMonoDriver {
+    fn with_dependency<Result, F: FnOnce(RTC0) -> Result>(f: F) -> Result
+    where
+        Self: Sized,
+    {
+        NrfDriverResources::with_ref_mut(|resources| f(resources.rtc0.take().unwrap()))
     }
 }
 
-impl Driver for NrfRticMonoDriver {
-    fn ensure_is_initialized() {
-        Self::ensure_is_initialized();
+impl<'a> Initialized for NrfRticMonoDriver {
+    fn init(&self) {
+        self.0.ensure_is_initialized();
+        NrfSleepOscillatorDriver.ensure_is_initialized();
+        NrfSleepOscillatorDriver::request();
+        Self::with_dependency(|rtc0| {
+            private::Rtc0Mono::start(rtc0);
+        });
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.0.is_initialized()
     }
 }
 
@@ -69,3 +77,5 @@ impl MonoDriver for NrfRticMonoDriver {
             .map_err(|_| api::TIMEOUT)
     }
 }
+
+impl Driver for NrfRticMonoDriver {}

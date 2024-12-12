@@ -15,14 +15,14 @@ use api::osc::*;
 use gpio_nrf::NrfGpioDriverState;
 use mono_nrf_rtic::NrfRticMonoDriver;
 pub use mono_nrf_rtic::{Duration, Instant};
-use osc_nrf::{NrfHfOscillatorDriver, NrfLfOscillatorDriver, NrfOscillatorsDriver};
+use osc_nrf::{NrfHighAccOscillatorDriver, NrfOscillatorsDriver, NrfSleepOscillatorDriver};
 pub use resources_nrf::pac;
-use rng_nrf::NrfRngDriver;
+use rng_nrf::NrfRngDriverState;
 use usb_nrf::NrfUsbDriver;
 
 pub struct Drivers<'a> {
-    pub osc: &'a NrfOscillatorsDriver<NrfLfOscillatorDriver, NrfHfOscillatorDriver>,
-    pub rng: NrfRngDriver,
+    pub osc: &'a NrfOscillatorsDriver<NrfSleepOscillatorDriver, NrfHighAccOscillatorDriver>,
+    pub rng: NrfRngDriverState,
     pub mono: NrfRticMonoDriver,
     pub gpio: NrfGpioDriverState,
     pub usb: &'a mut NrfUsbDriver,

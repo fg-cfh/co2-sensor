@@ -57,7 +57,7 @@ mod app {
 
         let mut interface_config =
             Config::new(HardwareAddress::Ethernet(EthernetAddress(DEVICE_MAC_ADDR)));
-        interface_config.random_seed = drivers.rng.random_u64();
+        interface_config.random_seed = drivers.rng.next_u64();
 
         let now = Instant::from_micros(
             i64::try_from(drivers.mono.now().duration_since_epoch().to_micros()).unwrap(),
